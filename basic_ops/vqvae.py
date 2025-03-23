@@ -128,7 +128,7 @@ class vqvae(flax.nnx.Module):
         vqLoss = jnp.mean((candidateLatens4Loss - jax.lax.stop_gradient(replacedLatents)) ** 2) *.25 # vq loss
         self.sow(flax.nnx.Intermediate, "commitLoss", commitLoss, reduce_fn=lambda x, y: y)
         self.sow(flax.nnx.Intermediate, "vqLoss", vqLoss, reduce_fn=lambda x, y: y)
-        return commitLoss + vqLoss
+        return
     
         
 model = vqvae()
@@ -138,7 +138,8 @@ def loss_fn(model, x):
     y = (jnp.array(x) / 255. ) - 1.
     y_hat = model(y)
     se = jnp.mean((y_hat - y) ** 2) 
-    return (se + model.commit_and_vq_loss() + model.l2Reg()) 
+    model.commit_and_vq_loss()
+    return (se + model.commitLoss + model.vqLoss + model.l2Reg())
 
 learningRate = 1e-4
 
