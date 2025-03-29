@@ -68,9 +68,22 @@ class projectLayer(flax.nnx.Module):
         super(flax.nnx.Module, self).__init__(*args, **kwargs)
         self.rngs = rngs
         
+        # input: [-1, 32]
+        
+        self.longConv1 = flax.nnx.Conv(1, 4, (32), strides=1, rngs=self.rngs) # [-1, 32, 4]
+        self.longConv2 = flax.nnx.Conv(4, 1, (32), strides=1, rngs=self.rngs) # [-1, 32, 1]
+        
     def __call__(self, x):
-        pass
+        longConv1 = self.longConv1(x)
+        longConv2 = self.longConv2(longConv1)
+        
+        return longConv2.reshape([-1, 32])
     
+    
+def model_weights_ma_update(teacher_model, student_model, tau):
+    
+    pass
+
     
 if __name__ == "__main__":
     model = CNNStem(flax.nnx.Rngs(1))
