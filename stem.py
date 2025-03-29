@@ -80,9 +80,26 @@ class projectLayer(flax.nnx.Module):
         return longConv2.reshape([-1, 32])
     
     
-def model_weights_ma_update(teacher_model, student_model, tau):
+def teacher_weights_ma_update(teacher_model, student_model, tau=.99):
+    # get teacher's and student's states
+    teacherState = flax.nnx.state(teacher_model)
+    studentState = flax.nnx.state(student_model)
     
-    pass
+    # get teacher's and student's parameters with nnx.state.filter
+    teacherParams = teacherState.filter(flax.nnx.Param)
+    studentParams = studentState.filter(flax.nnx.Param)
+    
+    # make the pytree with new weights
+    newTeacherParams = jax.tree_util.tree_map(
+        lambda x, y: tau * x + (1 - tau) * y,
+        teacherParams,
+        studentParams
+    )
+    
+    # make new state for merging and update teacher
+    newTeacherState = flax.nnx.State.merge(teacherState, newTeacherParams)
+    flax.nnx.update(teacher_model, newTeacherState)
+    
 
     
 if __name__ == "__main__":
@@ -97,6 +114,7 @@ if __name__ == "__main__":
     
     studentProj = projector(model(np.ones([5, 128, 128, 3])))
     
-    
-    # print(model(projector(np.ones([5, 128, 128, 3]))).shape)
+    modelA = CNNStem(flax.nnx.Rngs(1))
+    modelB = CNNStem(flax.nnx.Rngs(2))
+    teacher_weights_ma_update(modelA, modelB)
         
