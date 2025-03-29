@@ -6,6 +6,7 @@ import flax
 import flax.nnx
 import tensorflow_datasets as tfds
 import tensorflow as tf
+import keras as k
 
 import stem
 import losses
@@ -16,6 +17,21 @@ learningRate = 1e-4
 trainingStep = 10000
 
 # create the dataset
+random_rotate = k.layers.RandomRotation(0.05)
+def imagePreprocess(image):
+    image = tf.image.random_flip_left_right(image)
+    image = tf.image.random_flip_up_down(image)
+    image = random_rotate(image)
+    image = tf.image.random_brightness(image, 0.2)
+    image = tf.image.random_contrast(image, 0.5, 2.0)
+    image = tf.image.random_saturation(image, 0.75, 1.25)
+    # image = tf.image.stateless_random_crop(image, [20, 20, 3], seed=(1, 2))
+    image = tf.image.random_crop(value=image, size=(batchSize, 64, 64, 3))
+    image = tf.image.random_hue(image, 0.2)
+    image = tf.image.resize(image, (128, 128), tf.image.ResizeMethod.BICUBIC)
+    image = (tf.cast(image, tf.float32) - 128 / 128.0) 
+    return image
+
 dsimg = tfds.load("beans", split='train', shuffle_files=True, batch_size=-1)['image'].numpy()
 reImg = tf.image.resize(dsimg, [256,256])
 dataset = tf.data.Dataset.from_tensor_slices(reImg)
@@ -54,11 +70,11 @@ def update_model_weights(teacher, student, projectStudent, x1, x2):
 
 # training loop
 for step in range(trainingStep):
-    x1 = jnp.array(next(ds_iter))
-    x2 = jnp.array(tf.image.random_crop(value=x1, size=(batchSize, 128, 128, 3)))
+    x1 = jnp.array(imagePreprocess(next(ds_iter)))
+    x2 = jnp.array(imagePreprocess(x1))
     loss = update_model_weights(teacher, student, projectStudent, x1, x2)
     
-    if step % 100 == 0:
+    if step % 10 == 0:
         print("step:{}  loss:{}".format(step, loss))
     
     
