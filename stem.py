@@ -52,21 +52,23 @@ class CNNStem(flax.nnx.Module):
         long1 = self.longConv1(dconv3)
         long2 = self.longConv2(long1)
         
-        output = long2.reshape([-1, 32])
+        out = long2.reshape([-1, 32])
         
-        return output
+        return out
         
 
     def mish(self, x):
         return x * flax.nnx.tanh(flax.nnx.softplus(x))
     
-class projectLayer(flax.nnx.Module):
-    def __init__(self, 
+class StudentProject(flax.nnx.Module):
+    def __init__(self,
+                 studentModel, 
                  rngs,
                  *args, 
                  **kwargs):
         super(flax.nnx.Module, self).__init__(*args, **kwargs)
         self.rngs = rngs
+        self.studentModel = studentModel
         
         # input: [-1, 32]
         
@@ -74,20 +76,42 @@ class projectLayer(flax.nnx.Module):
         self.longConv2 = flax.nnx.Conv(4, 1, (32), strides=1, rngs=self.rngs) # [-1, 32, 1]
         
     def __call__(self, x):
-        longConv1 = self.longConv1(x)
+        studentOutput = self.studentModel(x)
+        longConv1 = self.longConv1(studentOutput.reshape([-1, 32, 1]))
         longConv2 = self.longConv2(longConv1)
         
         return longConv2.reshape([-1, 32])
     
     
-def model_weights_ma_update(teacher_model, student_model, tau):
+def teacher_weights_ma_update(teacher_model, student_model, tau=.99):
+    # get teacher's and student's states
+    teacherState = flax.nnx.state(teacher_model)
+    studentState = flax.nnx.state(student_model)
     
-    pass
+    # get teacher's and student's parameters with nnx.state.filter
+    teacherParams = teacherState.filter(flax.nnx.Param)
+    studentParams = studentState.filter(flax.nnx.Param)
+    
+    # make the pytree with new weights
+    newTeacherParams = jax.tree_util.tree_map(
+        lambda x, y: tau * x + (1 - tau) * y,
+        teacherParams,
+        studentParams
+    )
+    
+    # make new state for merging and update teacher
+    newTeacherState = flax.nnx.State.merge(teacherState, newTeacherParams)
+    flax.nnx.update(teacher_model, newTeacherState)
+    
 
     
 if __name__ == "__main__":
     model = CNNStem(flax.nnx.Rngs(1))
-    print(model(np.ones([5, 128, 128, 3])))
+    projector = StudentProject(model, flax.nnx.Rngs(2))
     print(model(np.ones([5, 128, 128, 3])).shape)
-    pass
+    print(projector(np.ones([5, 128, 128, 3])).shape)
+    
+    modelA = CNNStem(flax.nnx.Rngs(1))
+    modelB = CNNStem(flax.nnx.Rngs(2))
+    teacher_weights_ma_update(modelA, modelB)
         
