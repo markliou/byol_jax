@@ -12,7 +12,7 @@ import stem
 import losses
 
 # training parameters
-batchSize = 128
+batchSize = 768
 learningRate = 1e-4
 trainingStep = 10000
 
@@ -70,12 +70,14 @@ def update_model_weights(teacher, student, projectStudent, x1, x2):
 
 # training loop
 for step in range(trainingStep):
-    x1 = jnp.array(imagePreprocess(next(ds_iter)))
-    x2 = jnp.array(imagePreprocess(x1))
-    loss = update_model_weights(teacher, student, projectStudent, x1, x2)
     
-    if step % 10 == 0:
-        print("step:{}  loss:{}".format(step, loss))
+    # inspect the performance for certain loops
+    for innerloop in range(100):
+        x1 = jnp.array(imagePreprocess(next(ds_iter)))
+        x2 = jnp.array(imagePreprocess(x1))
+        loss = update_model_weights(teacher, student, projectStudent, x1, x2)
+    
+    print("step:{}  loss:{}".format(step, loss))
     
     
     
