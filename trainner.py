@@ -72,12 +72,13 @@ def update_model_weights(teacher, student, projectStudent, x1, x2):
 for step in range(trainingStep):
     
     # inspect the performance for certain loops
-    for innerloop in range(100):
+    innerStep = 100
+    for innerloop in range(innerStep):
         x1 = jnp.array(imagePreprocess(next(ds_iter)))
         x2 = jnp.array(imagePreprocess(x1))
         loss = update_model_weights(teacher, student, projectStudent, x1, x2)
     
-    print("step:{}  loss:{}".format(step, loss))
+    print("step:{}  loss:{}".format((step+1) * innerStep, loss))
     
     
     
