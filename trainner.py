@@ -12,7 +12,7 @@ import stem
 import losses
 
 # training parameters
-batchSize = 768
+batchSize = 512
 learningRate = 1e-4
 trainingStep = 10000
 
@@ -53,11 +53,11 @@ optChain = optax.chain(
 opt = flax.nnx.Optimizer(projectStudent, optChain)
 
 # using MSE as training loss
-# @flax.nnx.jit
+@flax.nnx.jit
 def loss_fn(projectStudent, teacher, x1, x2):
     y1 = teacher(x1)
     y2 = projectStudent(x2)
-    return losses.mse(y1, y2)
+    return losses.byol_loss(y1, y2)
 grad_fn = flax.nnx.value_and_grad(loss_fn)
 
 def update_model_weights(teacher, student, projectStudent, x1, x2):
