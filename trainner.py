@@ -1,3 +1,6 @@
+import os
+os.environ['CUDA_MPS_ACTIVE_THREAD_PERCENTAGE'] = '50'  # 限制 CUDA MPS 資源
+
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -57,10 +60,10 @@ opt = flax.nnx.Optimizer(projectStudent, optChain)
 def loss_fn(projectStudent, teacher, x1, x2):
     y1 = teacher(x1)
     y2 = projectStudent(x2)
-    return losses.byol_loss(y1, y2)
-    # return losses.mse(y1,y2)
+    return losses.byol_loss(y1, y2) + projectStudent.l2regularization()
 grad_fn = flax.nnx.value_and_grad(loss_fn)
 
+# @flax.nnx.jit # ==> cause abnormal output
 def update_model_weights(teacher, student, projectStudent, x1, x2):
    loss, grads = grad_fn(projectStudent, teacher, x1, x2)
    # update student
