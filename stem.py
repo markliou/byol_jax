@@ -13,13 +13,13 @@ class CNNStem(flax.nnx.Module):
         self.rngs = rngs
         
         # input: [n, 128, 128, 3]
-        self.conv1 = flax.nnx.Conv(3, 16, (11,11), strides=2, rngs=self.rngs) # [-1, 64, 64, 16]
+        self.conv1 = flax.nnx.Conv(3, 16, (5,5), strides=2, rngs=self.rngs) # [-1, 64, 64, 16]
         self.conv1c = flax.nnx.Conv(16, 16, (3,3), strides=1, rngs=self.rngs) # [-1, 64, 64, 16]
         self.conv1c_n = flax.nnx.RMSNorm(64 * 64 * 16, rngs=self.rngs)
-        self.conv2 = flax.nnx.Conv(16, 32, (11,11), strides=2, rngs=self.rngs) # [-1, 32, 32, 32]
+        self.conv2 = flax.nnx.Conv(16, 32, (5,5), strides=2, rngs=self.rngs) # [-1, 32, 32, 32]
         self.conv2c = flax.nnx.Conv(32, 32, (3,3), strides=1, rngs=self.rngs) # [-1, 32, 32, 32]
         self.conv2c_n = flax.nnx.RMSNorm(32 * 32 * 32, rngs=self.rngs)
-        self.conv3 = flax.nnx.Conv(32, 64, (11,11), strides=2, rngs=self.rngs) # [-1, 16, 16, 64]
+        self.conv3 = flax.nnx.Conv(32, 64, (5,5), strides=2, rngs=self.rngs) # [-1, 16, 16, 64]
         self.conv3c = flax.nnx.Conv(64, 64, (3,3), strides=1, rngs=self.rngs) # [-1, 16, 16, 64]
         self.conv3c_n = flax.nnx.RMSNorm(16 * 16 * 64, rngs=self.rngs)
         
@@ -62,7 +62,6 @@ class CNNStem(flax.nnx.Module):
         
         return out
         
-
     def mish(self, x):
         return x * flax.nnx.tanh(flax.nnx.softplus(x))
     
@@ -79,20 +78,22 @@ class StudentProject(flax.nnx.Module):
         # input: [-1, 32]
         self.studentOutput_n = flax.nnx.RMSNorm(32, rngs=self.rngs)
         self.longConv1 = flax.nnx.Conv(1, 4, (32), strides=1, rngs=self.rngs) # [-1, 32, 4]
+        self.longConv1_n = flax.nnx.RMSNorm(4, rngs=self.rngs) # [-1, 32, 4]
         self.longConv2 = flax.nnx.Conv(4, 1, (32), strides=1, rngs=self.rngs) # [-1, 32, 1]
         
     def __call__(self, x):
         studentOutput = self.studentModel(x) # [-1, 32]
         studentOutput_n = self.studentOutput_n(studentOutput) # [-1, 32]
         longConv1 = self.longConv1(studentOutput_n.reshape([-1, 32, 1])) # [-1, 32, 4]
-        longConv2 = self.longConv2(self.mish(longConv1)) # [-1, 32, 1]
+        longConv1_n = self.longConv1_n(longConv1) # [-1, 32, 4]
+        longConv2 = self.longConv2(self.mish(longConv1_n)) # [-1, 32, 1]
         return longConv2.reshape([-1, 32])
     
     def mish(self, x):
         return x * flax.nnx.tanh(flax.nnx.softplus(x))
     
     
-def teacher_weights_ma_update(teacher_model, student_model, tau=.99):
+def teacher_weights_ma_update(teacher_model, student_model, tau=.999):
     # get teacher's and student's states
     teacherState = flax.nnx.state(teacher_model)
     studentState = flax.nnx.state(student_model)
