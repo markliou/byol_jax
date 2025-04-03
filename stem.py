@@ -11,27 +11,32 @@ class CNNStem(flax.nnx.Module):
                  *args, **kwargs):
         super(flax.nnx.Module, self).__init__(*args, **kwargs)
         self.rngs = rngs
+        self.regularizedTargets = []
+        
+        def append_regularizedTarget(t):
+            self.regularizedTargets.append(t)
+            return(t)
         
         # input: [n, 128, 128, 3]
-        self.conv1 = flax.nnx.Conv(3, 16, (5,5), strides=2, rngs=self.rngs) # [-1, 64, 64, 16]
-        self.conv1c = flax.nnx.Conv(16, 16, (3,3), strides=1, rngs=self.rngs) # [-1, 64, 64, 16]
+        self.conv1 = append_regularizedTarget(flax.nnx.Conv(3, 16, (5,5), strides=2, rngs=self.rngs)) # [-1, 64, 64, 16]
+        self.conv1c = append_regularizedTarget(flax.nnx.Conv(16, 16, (3,3), strides=1, rngs=self.rngs)) # [-1, 64, 64, 16]
         self.conv1c_n = flax.nnx.RMSNorm(64 * 64 * 16, rngs=self.rngs)
-        self.conv2 = flax.nnx.Conv(16, 32, (5,5), strides=2, rngs=self.rngs) # [-1, 32, 32, 32]
-        self.conv2c = flax.nnx.Conv(32, 32, (3,3), strides=1, rngs=self.rngs) # [-1, 32, 32, 32]
+        self.conv2 = append_regularizedTarget(flax.nnx.Conv(16, 32, (5,5), strides=2, rngs=self.rngs)) # [-1, 32, 32, 32]
+        self.conv2c = append_regularizedTarget(flax.nnx.Conv(32, 32, (3,3), strides=1, rngs=self.rngs)) # [-1, 32, 32, 32]
         self.conv2c_n = flax.nnx.RMSNorm(32 * 32 * 32, rngs=self.rngs)
-        self.conv3 = flax.nnx.Conv(32, 64, (5,5), strides=2, rngs=self.rngs) # [-1, 16, 16, 64]
-        self.conv3c = flax.nnx.Conv(64, 64, (3,3), strides=1, rngs=self.rngs) # [-1, 16, 16, 64]
+        self.conv3 = append_regularizedTarget(flax.nnx.Conv(32, 64, (5,5), strides=2, rngs=self.rngs)) # [-1, 16, 16, 64]
+        self.conv3c = append_regularizedTarget(flax.nnx.Conv(64, 64, (3,3), strides=1, rngs=self.rngs)) # [-1, 16, 16, 64]
         self.conv3c_n = flax.nnx.RMSNorm(16 * 16 * 64, rngs=self.rngs)
         
         # down sampling 1d feature map
         # input shape: [-1, 16 * 16, 64]
-        self.dconv1 = flax.nnx.Conv(64, 32, (9), strides=2, rngs=self.rngs) # [-1, 128, 32]
-        self.dconv2 = flax.nnx.Conv(32, 16, (9), strides=2, rngs=self.rngs) # [-1, 64, 16]
-        self.dconv3 = flax.nnx.Conv(16, 1, (9), strides=2, rngs=self.rngs) # [-1, 32, 1]
+        self.dconv1 = append_regularizedTarget(flax.nnx.Conv(64, 32, (9), strides=2, rngs=self.rngs)) # [-1, 128, 32]
+        self.dconv2 = append_regularizedTarget(flax.nnx.Conv(32, 16, (9), strides=2, rngs=self.rngs)) # [-1, 64, 16]
+        self.dconv3 = append_regularizedTarget(flax.nnx.Conv(16, 1, (9), strides=2, rngs=self.rngs)) # [-1, 32, 1]
         
         # fft by long conv
-        self.longConv1 = flax.nnx.Conv(1, 1, (32), strides=1, rngs=self.rngs) # [-1, 32, 1]
-        self.longConv2 = flax.nnx.Conv(1, 1, (32), strides=1, rngs=self.rngs) # [-1, 32, 1]
+        self.longConv1 = append_regularizedTarget(flax.nnx.Conv(1, 1, (32), strides=1, rngs=self.rngs)) # [-1, 32, 1]
+        self.longConv2 = append_regularizedTarget(flax.nnx.Conv(1, 1, (32), strides=1, rngs=self.rngs)) # [-1, 32, 1]
                 
     def __call__(self, x):
         conv1 = self.conv1(x)
@@ -69,17 +74,28 @@ class StudentProject(flax.nnx.Module):
     def __init__(self,
                  studentModel, 
                  rngs,
+                 l2reg = 1e-4,
                  *args, 
                  **kwargs):
         super(flax.nnx.Module, self).__init__(*args, **kwargs)
+        
         self.rngs = rngs
+        self.l2reg = l2reg
         self.studentModel = studentModel # [-1, 32]
+        self.regularizedTargets = []
+        self.l2RegLoss = 0.
+        
+        def append_regularizedTarget(t):
+            self.regularizedTargets.append(t)
+            return(t)
+        
+        self.regularizedTargets += self.studentModel.regularizedTargets
         
         # input: [-1, 32]
         self.studentOutput_n = flax.nnx.RMSNorm(32, rngs=self.rngs)
-        self.longConv1 = flax.nnx.Conv(1, 4, (32), strides=1, rngs=self.rngs) # [-1, 32, 4]
+        self.longConv1 = append_regularizedTarget(flax.nnx.Conv(1, 4, (32), strides=1, rngs=self.rngs)) # [-1, 32, 4]
         self.longConv1_n = flax.nnx.RMSNorm(4, rngs=self.rngs) # [-1, 32, 4]
-        self.longConv2 = flax.nnx.Conv(4, 1, (32), strides=1, rngs=self.rngs) # [-1, 32, 1]
+        self.longConv2 = append_regularizedTarget(flax.nnx.Conv(4, 1, (32), strides=1, rngs=self.rngs)) # [-1, 32, 1]
         
     def __call__(self, x):
         studentOutput = self.studentModel(x) # [-1, 32]
@@ -87,11 +103,20 @@ class StudentProject(flax.nnx.Module):
         longConv1 = self.longConv1(studentOutput_n.reshape([-1, 32, 1])) # [-1, 32, 4]
         longConv1_n = self.longConv1_n(longConv1) # [-1, 32, 4]
         longConv2 = self.longConv2(self.mish(longConv1_n)) # [-1, 32, 1]
+        self.l2regularization()
         return longConv2.reshape([-1, 32])
     
     def mish(self, x):
         return x * flax.nnx.tanh(flax.nnx.softplus(x))
     
+    def l2regularization(self):
+        l2RegLoss = 0
+        for l in self.regularizedTargets:
+            parameters = flax.nnx.state(l).filter(flax.nnx.Param)
+            sqrParams = jax.tree_util.tree_map(lambda x: jnp.sum(x ** 2), parameters)
+            sumSqrParams = jax.tree_util.tree_reduce(jnp.add, sqrParams, 0.0)
+            l2RegLoss += sumSqrParams 
+        return l2RegLoss * self.l2reg
     
 def teacher_weights_ma_update(teacher_model, student_model, tau=.999):
     # get teacher's and student's states
@@ -120,6 +145,15 @@ if __name__ == "__main__":
     projector = StudentProject(model, flax.nnx.Rngs(2))
     print(model(np.ones([5, 128, 128, 3])).shape)
     print(projector(np.ones([5, 128, 128, 3])).shape)
+    print(model.regularizedTargets)
+    print('======')
+    print(projector.regularizedTargets)
+    print('======')
+    print(len(model.regularizedTargets))
+    print(len(projector.regularizedTargets))
+    print('======')
+    print(projector.l2regularization())
+    exit()
     
     modelA = CNNStem(flax.nnx.Rngs(1))
     modelB = CNNStem(flax.nnx.Rngs(2))

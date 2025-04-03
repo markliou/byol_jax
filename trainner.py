@@ -60,8 +60,7 @@ opt = flax.nnx.Optimizer(projectStudent, optChain)
 def loss_fn(projectStudent, teacher, x1, x2):
     y1 = teacher(x1)
     y2 = projectStudent(x2)
-    return losses.byol_loss(y1, y2)
-    # return losses.mse(y1,y2)
+    return losses.byol_loss(y1, y2) + projectStudent.l2regularization()
 grad_fn = flax.nnx.value_and_grad(loss_fn)
 
 # @flax.nnx.jit # ==> cause abnormal output
